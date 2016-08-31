@@ -1,0 +1,428 @@
+# LAMMPS Script - Polymer in Nanofluidic Channel, DPD Fluid (clark_bowman@brown.edu)
+# LAMMPS version Feb. 1, 2014
+
+
+
+
+
+# SEC: This section defines the physical properties of the polymer. All units are LJ unless specified.
+
+# 	VAR: harmonic bond coefficient between monomers in-chain
+variable bond_strength equal 500
+
+# 	VAR: length of monomer-monomer bonds
+variable bond_length equal 1
+
+# 	VAR: harmonic angle coefficient in-chain
+variable angle_strength equal 0.5
+
+# 	VAR: angle potentials are centered at this position in degrees (180.0 = straight)
+variable angle_neutral equal 180
+
+# 	VAR: DPD conservative coefficient for monomers
+variable dpd_conservative_polymer equal 25
+
+# 	VAR: DPD cutoff radius for monomers
+variable dpd_cutoff_polymer equal 0.3
+
+
+# SEC: This section defines properties of the LJ reflecting walls.
+
+# 	VAR: coefficient epsilon for wall potential (energy scaling)
+variable wall_coefficient equal 0.001
+
+# 	VAR: coefficient sigma for wall potential (distance scaling)
+variable wall_radius equal 0.3
+
+# 	VAR: cutoff radius for wall potential
+variable lj_cutoff equal 0.5
+
+
+# SEC: This section defines properties of the fluid.
+
+# 	VAR: DPD conservative coefficient for fluid
+variable dpd_conservative_fluid equal 25
+
+# 	VAR: DPD dissipative coefficient (used for both fluid and polymer)
+variable dpd_dissipative equal 1
+
+# 	VAR: DPD cutoff radius for fluid particles
+variable dpd_cutoff_fluid equal 4.5
+
+# 	VAR: lattice density of fluid initialization in particles per cubic unit
+variable lattice_density equal 3.2
+
+# 	VAR: enforced fluid flow velocity (critical velocity was around 0.05)
+variable flow_velocity equal 0.04
+
+
+# SEC: This section defines parameters of the simulation proper.
+
+# 	VAR: thermostat temperature
+variable temperature equal 1
+
+# 	VAR: total number of steps to run (use arbitrarily large number to run until process is killed)
+variable run_length equal 500000000
+
+# 	VAR: interval between position dumps of tracked subset of particles
+variable dump_interval_tracking equal 10000
+
+# 	VAR: if dump is used, interval between position dumps of entire system
+variable dump_interval equal 100000
+
+
+# SEC: This section initializes the simulation.
+
+# 	Define units, atom style, log path, and neighbor settings; and read configuration data for the polymer.
+# 	Configuration data for the polymer in polymer.dat must be generated separately.
+# 	Final line communicates ghost data and is necessary for DPD parallelizing. On some versions of LAMMPS, use instead `comm_modify vel yes'
+
+units lj
+atom_style molecular
+log polymer_fluid.log
+read_data polymer.dat
+neighbor 0.3 bin
+neigh_modify delay 5
+comm_modify vel yes
+
+
+# 	Define bond, angle, pairwise interactions according to the values of the variables above.
+# 	For pairwise interactions, type 1 is polymer, type 2 is fluid, and type 3 is tracked fluid.
+#   35498 is a temperature seed; change for different randomness.
+
+bond_style harmonic
+bond_coeff 1 ${bond_strength} ${bond_length}
+angle_style harmonic
+angle_coeff 1 ${angle_strength} ${angle_neutral}
+dihedral_style none
+pair_style dpd ${temperature} ${dpd_cutoff_fluid} 35498
+pair_coeff 1 * ${dpd_conservative_polymer} ${dpd_dissipative} ${dpd_cutoff_polymer}
+pair_coeff 2*3 2*3 ${dpd_conservative_fluid} ${dpd_dissipative} ${dpd_cutoff_fluid}
+
+
+# SEC: This section initializes the geometry.
+
+#   Define safe regions where fluid may be placed. This is the union of safe1 (main channel) with safe2 - safe4 (three pits).
+# 	The simulation box is 240 x 80 x 8. The safe regions occur just inside the locations of walls to prevent singularities at the boundaries.
+
+region safe1 block 0.1 800 0.1 80 0.1 3.9 units box
+region safe2 block 20.1 59.9 20.1 59.9 -3.9 3.8 units box
+region safe3 block 100.1 139.9 20.1 59.9 -3.9 3.8 units box
+region safe4 block 180.1 219.9 20.1 59.9 -3.9 3.8 units box
+region safe5 block 260.1 299.9 20.1 59.9 -3.9 3.8 units box
+region safe6 block 340.1 379.9 20.1 59.9 -3.9 3.8 units box
+region safe7 block 420.1 459.9 20.1 59.9 -3.9 3.8 units box
+region safe8 block 500.1 539.9 20.1 59.9 -3.9 3.8 units box
+region safe9 block 580.1 619.9 20.1 59.9 -3.9 3.8 units box
+region safe10 block 660.1 699.9 20.1 59.9 -3.9 3.8 units box
+region safe11 block 740.1 779.9 20.1 59.9 -3.9 3.8 units box
+region safe union 11 safe1 safe2 safe3 safe4 safe5 safe6 safe7 safe8 safe9 safe10 safe11
+
+# 	Define unsafe regions where LJ walls will be imposed. This must be done as a series of boxes because of limitations of fix wall/region,
+# 	which does not handle internal corners well. `plates' is the upper and lower boundary, and the other blocks shape out the channel.
+# 	Final region defines where the force from the fluid will be applied.
+
+region plates block -1 801 -1 81 -4.1 4.1 units box side in
+region block1 block -1 801 -1 20 -5 0 units box side out
+region block2 block -1 801 60 81 -5 0 units box side out
+region block3 block -1 20 20 60 -5 0 units box side out
+region block4 block 780 801 20 60 -5 0 units box side out
+region block5 block 60 100 20 60 -5 0 units box side out
+region block6 block 140 180 20 60 -5 0 units box side out
+region block7 block 220 260 20 60 -5 0 units box side out
+region block8 block 300 340 20 60 -5 0 units box side out
+region block9 block 380 420 20 60 -5 0 units box side out
+region block10 block 460 500 20 60 -5 0 units box side out
+region block11 block 540 580 20 60 -5 0 units box side out
+region block12 block 620 660 20 60 -5 0 units box side out
+region block13 block 700 740 20 60 -5 0 units box side out
+region flow block -1 801 -1 81 0 4 units box
+
+
+# SEC: This section initializes the fluid.
+
+# 	At a lattice of the specified density, create the fluid atoms.
+# 	Define regions and groups to track. Tracked region is a section of fluid.
+
+lattice fcc ${lattice_density}
+create_atoms 2 region safe
+region tracked block 60.3 60.5 -1 81 -5 5 units box
+group topflow region flow
+group polymer type 1
+group fluid type 2
+group stuff type 1 2
+
+
+# SEC: This section introduces partial-slip boundary conditions by the method of Pivkin & Karniadakis (2004).
+
+# 	Each section here creates one section of frozen fluid particles just outside the wall.
+# 	Variable `v1' is the inter-particle spacing necessary to achieve the desired lattice density.
+# 	Particles are placed in a small region just outside the wall on the vertices of an fcc lattice.
+# 	The lattice, which by default has a particle on the origin, is shifted by variables `v2' onward so that a layer is centered in the target region.
+
+# 	Top wall particles.
+variable v1 equal '(4.0/v_lattice_density)^(1/3)'
+variable v2 equal '4/v_v1+0.5/sqrt(2)-floor(4/v_v1+0.5/sqrt(2))'
+lattice fcc ${lattice_density} origin 0 0 ${v2}
+region frozen1 block -1 801 -1 81 4.2809 4.4809 units box side in
+create_atoms 2 region frozen1
+
+# 	Bottom wall particles (pit).
+variable v3 equal '-4/v_v1-0.5/sqrt(2)-floor(-4/v_v1-0.5/sqrt(2))'
+lattice fcc ${lattice_density} origin 0 0 ${v3}
+region frozen20 block 19 61 19 61 -4.4809 -4.2809 units box side in
+region frozen21 block 99 141 19 61 -4.4809 -4.2809 units box side in
+region frozen22 block 179 221 19 61 -4.4809 -4.2809 units box side in
+region frozen23 block 259 301 19 61 -4.4809 -4.2809 units box side in
+region frozen24 block 339 381 19 61 -4.4809 -4.2809 units box side in
+region frozen25 block 419 461 19 61 -4.4809 -4.2809 units box side in
+region frozen26 block 499 541 19 61 -4.4809 -4.2809 units box side in
+region frozen27 block 579 621 19 61 -4.4809 -4.2809 units box side in
+region frozen28 block 659 701 19 61 -4.4809 -4.2809 units box side in
+region frozen29 block 739 781 19 61 -4.4809 -4.2809 units box side in
+region frozen2 union 10 frozen20 frozen21 frozen22 frozen23 frozen24 frozen25 frozen26 frozen27 frozen28 frozen29
+create_atoms 2 region frozen2
+
+# 	Bottom wall particles (channel).
+variable v4 equal '-0.5/sqrt(2)+1'
+lattice fcc ${lattice_density} origin 0 0 ${v4}
+region frozen3a block -1 19 18 62 -0.48085 -0.28085 units box side in
+region frozen3b block 781 801 18 62 -0.48085 -0.28085 units box side in
+region frozen3c block -1 801 -1 19 -0.48085 -0.28085 units box side in
+region frozen3d block -1 801 61 81 -0.48085 -0.28085 units box side in
+region frozen30 block 61 99 18 62 -0.48085 -0.28085 units box side in
+region frozen31 block 141 179 18 62 -0.48085 -0.28085 units box side in
+region frozen32 block 221 259 18 62 -0.48085 -0.28085 units box side in
+region frozen33 block 301 339 18 62 -0.48085 -0.28085 units box side in
+region frozen34 block 381 419 18 62 -0.48085 -0.28085 units box side in
+region frozen35 block 461 499 18 62 -0.48085 -0.28085 units box side in
+region frozen36 block 541 579 18 62 -0.48085 -0.28085 units box side in
+region frozen37 block 621 659 18 62 -0.48085 -0.28085 units box side in
+region frozen38 block 701 739 18 62 -0.48085 -0.28085 units box side in
+region frozen3 union 13 frozen3a frozen3b frozen3c frozen3d frozen30 frozen31 frozen32 frozen33 frozen34 frozen35 frozen36 frozen37 frozen38
+create_atoms 2 region frozen3
+
+# 	Particles in left walls of pits.
+variable v50 equal '20/v_v1-0.5/sqrt(2)-floor(20/v_v1-0.5/sqrt(2))'
+lattice fcc ${lattice_density} origin ${v50} 0 0
+region frozen40 block 19.519 19.719 19 61 -4 -1 units box side in
+create_atoms 2 region frozen40
+variable v51 equal '100/v_v1-0.5/sqrt(2)-floor(100/v_v1-0.5/sqrt(2))'
+lattice fcc ${lattice_density} origin ${v51} 0 0
+region frozen41 block 99.519 99.719 19 61 -4 -1 units box side in
+create_atoms 2 region frozen41
+variable v52 equal '180/v_v1-0.5/sqrt(2)-floor(180/v_v1-0.5/sqrt(2))'
+lattice fcc ${lattice_density} origin ${v52} 0 0
+region frozen42 block 179.52 179.72 19 61 -4 -1 units box side in
+create_atoms 2 region frozen42
+variable v53 equal '260/v_v1-0.5/sqrt(2)-floor(260/v_v1-0.5/sqrt(2))'
+lattice fcc ${lattice_density} origin ${v53} 0 0
+region frozen43 block 259.52 259.72 19 61 -4 -1 units box side in
+create_atoms 2 region frozen43
+variable v54 equal '340/v_v1-0.5/sqrt(2)-floor(340/v_v1-0.5/sqrt(2))'
+lattice fcc ${lattice_density} origin ${v54} 0 0
+region frozen44 block 339.52 339.72 19 61 -4 -1 units box side in
+create_atoms 2 region frozen44
+variable v55 equal '420/v_v1-0.5/sqrt(2)-floor(420/v_v1-0.5/sqrt(2))'
+lattice fcc ${lattice_density} origin ${v55} 0 0
+region frozen45 block 419.52 419.72 19 61 -4 -1 units box side in
+create_atoms 2 region frozen45
+variable v56 equal '500/v_v1-0.5/sqrt(2)-floor(500/v_v1-0.5/sqrt(2))'
+lattice fcc ${lattice_density} origin ${v56} 0 0
+region frozen46 block 499.52 499.72 19 61 -4 -1 units box side in
+create_atoms 2 region frozen46
+variable v57 equal '580/v_v1-0.5/sqrt(2)-floor(580/v_v1-0.5/sqrt(2))'
+lattice fcc ${lattice_density} origin ${v57} 0 0
+region frozen47 block 579.52 579.72 19 61 -4 -1 units box side in
+create_atoms 2 region frozen47
+variable v58 equal '660/v_v1-0.5/sqrt(2)-floor(660/v_v1-0.5/sqrt(2))'
+lattice fcc ${lattice_density} origin ${v58} 0 0
+region frozen48 block 659.52 659.72 19 61 -4 -1 units box side in
+create_atoms 2 region frozen48
+variable v59 equal '740/v_v1-0.5/sqrt(2)-floor(740/v_v1-0.5/sqrt(2))'
+lattice fcc ${lattice_density} origin ${v59} 0 0
+region frozen49 block 739.52 739.72 19 61 -4 -1 units box side in
+create_atoms 2 region frozen49
+
+# 	Particles in right walls of pits.
+variable v60 equal '60/v_v1+0.5/sqrt(2)-floor(60/v_v1+0.5/sqrt(2))'
+lattice fcc ${lattice_density} origin ${v60} 0 0
+region frozen50 block 60.281 60.481 19 61 -4 -1 units box side in
+create_atoms 2 region frozen50
+variable v61 equal '140/v_v1+0.5/sqrt(2)-floor(140/v_v1+0.5/sqrt(2))'
+lattice fcc ${lattice_density} origin ${v61} 0 0
+region frozen51 block 140.28 140.48 19 61 -4 -1 units box side in
+create_atoms 2 region frozen51
+variable v62 equal '220/v_v1+0.5/sqrt(2)-floor(220/v_v1+0.5/sqrt(2))'
+lattice fcc ${lattice_density} origin ${v62} 0 0
+region frozen52 block 220.28 220.48 19 61 -4 -1 units box side in
+create_atoms 2 region frozen52
+variable v63 equal '300/v_v1+0.5/sqrt(2)-floor(300/v_v1+0.5/sqrt(2))'
+lattice fcc ${lattice_density} origin ${v63} 0 0
+region frozen53 block 300.28 300.48 19 61 -4 -1 units box side in
+create_atoms 2 region frozen53
+variable v64 equal '380/v_v1+0.5/sqrt(2)-floor(380/v_v1+0.5/sqrt(2))'
+lattice fcc ${lattice_density} origin ${v64} 0 0
+region frozen54 block 380.28 380.48 19 61 -4 -1 units box side in
+create_atoms 2 region frozen54
+variable v65 equal '460/v_v1+0.5/sqrt(2)-floor(460/v_v1+0.5/sqrt(2))'
+lattice fcc ${lattice_density} origin ${v65} 0 0
+region frozen55 block 460.28 460.48 19 61 -4 -1 units box side in
+create_atoms 2 region frozen55
+variable v66 equal '540/v_v1+0.5/sqrt(2)-floor(540/v_v1+0.5/sqrt(2))'
+lattice fcc ${lattice_density} origin ${v66} 0 0
+region frozen56 block 540.28 540.48 19 61 -4 -1 units box side in
+create_atoms 2 region frozen56
+variable v67 equal '620/v_v1+0.5/sqrt(2)-floor(620/v_v1+0.5/sqrt(2))'
+lattice fcc ${lattice_density} origin ${v67} 0 0
+region frozen57 block 620.28 620.48 19 61 -4 -1 units box side in
+create_atoms 2 region frozen57
+variable v68 equal '700/v_v1+0.5/sqrt(2)-floor(700/v_v1+0.5/sqrt(2))'
+lattice fcc ${lattice_density} origin ${v68} 0 0
+region frozen58 block 700.28 700.48 19 61 -4 -1 units box side in
+create_atoms 2 region frozen58
+variable v69 equal '780/v_v1+0.5/sqrt(2)-floor(780/v_v1+0.5/sqrt(2))'
+lattice fcc ${lattice_density} origin ${v69} 0 0
+region frozen59 block 780.28 780.48 19 61 -4 -1 units box side in
+create_atoms 2 region frozen59
+
+# 	Particles in front walls of pits.
+variable v7 equal '20/v_v1-0.5/sqrt(2)-floor(20/v_v1-0.5/sqrt(2))'
+lattice fcc ${lattice_density} origin 0 ${v7} 0
+region frozen60 block 20 60 19.519 19.719 -4 -1 units box side in
+create_atoms 2 region frozen60
+region frozen61 block 100 140 19.519 19.719 -4 -1 units box side in
+create_atoms 2 region frozen61
+region frozen62 block 180 220 19.519 19.719 -4 -1 units box side in
+create_atoms 2 region frozen62
+region frozen63 block 260 300 19.519 19.719 -4 -1 units box side in
+create_atoms 2 region frozen63
+region frozen64 block 340 380 19.519 19.719 -4 -1 units box side in
+create_atoms 2 region frozen64
+region frozen65 block 420 460 19.519 19.719 -4 -1 units box side in
+create_atoms 2 region frozen65
+region frozen66 block 500 540 19.519 19.719 -4 -1 units box side in
+create_atoms 2 region frozen66
+region frozen67 block 580 620 19.519 19.719 -4 -1 units box side in
+create_atoms 2 region frozen67
+region frozen68 block 660 700 19.519 19.719 -4 -1 units box side in
+create_atoms 2 region frozen68
+region frozen69 block 740 780 19.519 19.719 -4 -1 units box side in
+create_atoms 2 region frozen69
+
+# 	Particles in back walls of pits.
+variable v8 equal '60/v_v1+0.5/sqrt(2)-floor(60/v_v1+0.5/sqrt(2))'
+lattice fcc ${lattice_density} origin 0 ${v8} 0
+region frozen70 block 20 60 60.281 60.481 -4 -1 units box side in
+create_atoms 2 region frozen70
+region frozen71 block 100 140 60.281 60.481 -4 -1 units box side in
+create_atoms 2 region frozen71
+region frozen72 block 180 220 60.281 60.481 -4 -1 units box side in
+create_atoms 2 region frozen72
+region frozen73 block 260 300 60.281 60.481 -4 -1 units box side in
+create_atoms 2 region frozen73
+region frozen74 block 340 380 60.281 60.481 -4 -1 units box side in
+create_atoms 2 region frozen74
+region frozen75 block 420 460 60.281 60.481 -4 -1 units box side in
+create_atoms 2 region frozen75
+region frozen76 block 500 540 60.281 60.481 -4 -1 units box side in
+create_atoms 2 region frozen76
+region frozen77 block 580 620 60.281 60.481 -4 -1 units box side in
+create_atoms 2 region frozen77
+region frozen78 block 660 700 60.281 60.481 -4 -1 units box side in
+create_atoms 2 region frozen78
+region frozen79 block 740 780 60.281 60.481 -4 -1 units box side in
+create_atoms 2 region frozen79
+
+# SEC: This section defines LAMMPS computes that will be used in the simulation.
+
+# 	This compute finds in each step the average x flow rate of all particles in the upper channel.
+# 	By subtracting off the target velocity, a restoring force will be imposed.
+
+compute av_vx fluid reduce/region flow ave vx
+variable diff equal '10.0*(v_flow_velocity - c_av_vx)'
+
+# 	Intermediate computes used in the following computes.
+
+compute atom_x polymer property/atom xu
+compute atom_vx polymer property/atom vx
+compute atom_fx polymer property/atom fx
+
+# 	Computes for gathering data: average polymer x position, radius of gyration, min/max x value, average x velocity, average x force.
+
+compute xpos polymer reduce ave c_atom_x
+compute xsq polymer gyration
+compute xmin polymer reduce min c_atom_x
+compute xmax polymer reduce max c_atom_x
+compute xvel polymer reduce ave c_atom_vx
+compute xfor polymer reduce ave c_atom_fx
+
+
+# SEC: This section initializes the particle velocities for the fluid and upper channel.
+
+velocity fluid create ${temperature} 12314
+velocity topflow set ${flow_velocity} 0 0 sum yes
+
+
+# SEC: This section defines fixes to impose forces in the simulation.
+
+# 	NVE integration for fluid, with limit for initialization.
+# 	Fix 3 is a restoring force to maintain fluid speed in the channel.
+# 	Fixes 2, 4-16 are wall LJ potentials.
+
+fix 1 fluid nve/limit 0.05
+fix 2 stuff wall/region plates lj126 ${wall_coefficient} ${wall_radius} ${lj_cutoff}
+fix 3 fluid addforce v_diff 0 0 region flow
+fix 4 stuff wall/region block1 lj126 ${wall_coefficient} ${wall_radius} ${lj_cutoff}
+fix 5 stuff wall/region block2 lj126 ${wall_coefficient} ${wall_radius} ${lj_cutoff}
+fix 6 stuff wall/region block3 lj126 ${wall_coefficient} ${wall_radius} ${lj_cutoff}
+fix 7 stuff wall/region block4 lj126 ${wall_coefficient} ${wall_radius} ${lj_cutoff}
+fix 8 stuff wall/region block5 lj126 ${wall_coefficient} ${wall_radius} ${lj_cutoff}
+fix 9 stuff wall/region block6 lj126 ${wall_coefficient} ${wall_radius} ${lj_cutoff}
+fix 10 stuff wall/region block7 lj126 ${wall_coefficient} ${wall_radius} ${lj_cutoff}
+fix 11 stuff wall/region block8 lj126 ${wall_coefficient} ${wall_radius} ${lj_cutoff}
+fix 12 stuff wall/region block9 lj126 ${wall_coefficient} ${wall_radius} ${lj_cutoff}
+fix 13 stuff wall/region block10 lj126 ${wall_coefficient} ${wall_radius} ${lj_cutoff}
+fix 14 stuff wall/region block11 lj126 ${wall_coefficient} ${wall_radius} ${lj_cutoff}
+fix 15 stuff wall/region block12 lj126 ${wall_coefficient} ${wall_radius} ${lj_cutoff}
+fix 16 stuff wall/region block13 lj126 ${wall_coefficient} ${wall_radius} ${lj_cutoff}
+
+
+# SEC: This section runs the simulation.
+
+# 	Simulation timestep (LJ time units).
+timestep 0.001
+
+# 	How often to output thermo data and first run phase.
+thermo ${dump_interval_tracking}
+run 25000
+
+# 	Release limit on fluid integrator and begin NVE integration on the polymer.
+unfix 1
+fix 1 fluid nve
+fix 1a polymer nve/limit 0.05
+run 25000
+
+# 	At this time, collect a strip of fluid particles near the polymer into a group to be tracked.
+# 	Convert fluid particles in the strip to type 3 (tracked fluid).
+
+group grp_tracked_pre region tracked
+group grp_tracked intersect fluid grp_tracked_pre
+set group grp_tracked type 3
+group grp_tracked type 1
+
+# 	Fixes for dumping information. Fixes 17-22 dump the computes at specified short intervals.
+# 	Dump 1 is a full simulation dump at the specified interval (leave commented).
+# 	Dump 2 is a tracked particle dump at the specified interval.
+
+fix 17 polymer ave/time 5 10 50 c_xpos file xpos.out
+fix 18 polymer ave/time 5 10 50 c_xsq[0] file xsq.out
+fix 19 polymer ave/time 5 10 50 c_xmin file xmin.out
+fix 20 polymer ave/time 5 10 50 c_xmax file xmax.out
+fix 21 polymer ave/time 5 10 50 c_xvel file xvel.out
+fix 22 polymer ave/time 5 10 50 c_xfor file xfor.out
+#dump 1 all atom ${dump_interval} polymer.lammpstrj
+dump 2 grp_tracked atom ${dump_interval_tracking} tracked_polymer.lammpstrj
+
+# 	Run data-collecting simulation.
+run ${run_length}
